@@ -5,7 +5,7 @@ const tg = window.Telegram.WebApp;
 tg.expand();
 
 // Включаем основную кнопку
-tg.MainButton.setText("Сохранить").show();
+tg.MainButton.setText("Сходить нахуй").show();
 
 // Функции приложения
 function showUserInfo() {
