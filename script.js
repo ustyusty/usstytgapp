@@ -39,5 +39,5 @@ tg.MainButton.onClick(() => {
 });
 
 // Адаптация под тему Telegram
-document.body.style.setProperty('--tg-theme-bg-color', tg.themeParams.bg_color || '#ffffff');
+document.body.style.setProperty('--tg-theme-bg-color', tg.themeParams.bg_color || '#aaaaaa');
 document.body.style.setProperty('--tg-theme-text-color', tg.themeParams.text_color || '#000000');
