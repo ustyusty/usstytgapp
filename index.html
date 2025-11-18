@@ -3,40 +3,338 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Мое TG Mini App</title>
+    <title>Галерея картинок</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <style>
-        body {
-            font-family: Arial, sans-serif;
+        * {
             margin: 0;
-            padding: 20px;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             background: var(--tg-theme-bg-color, #ffffff);
             color: var(--tg-theme-text-color, #000000);
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
         }
-        .container {
-            max-width: 600px;
-            margin: 0 auto;
+
+        .header {
+            padding: 15px;
+            text-align: center;
+            background: var(--tg-theme-secondary-bg-color, #f0f0f0);
+            border-bottom: 1px solid var(--tg-theme-section-separator-color, #e0e0e0);
         }
-        button {
+
+        .gallery-container {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            position: relative;
+        }
+
+        .image-wrapper {
+            width: 100%;
+            max-width: 400px;
+            height: 400px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 20px;
+            border-radius: 15px;
+            overflow: hidden;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+            background: var(--tg-theme-secondary-bg-color, #f8f8f8);
+        }
+
+        .gallery-image {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            transition: transform 0.3s ease;
+        }
+
+        .gallery-image:hover {
+            transform: scale(1.02);
+        }
+
+        .navigation {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .nav-btn {
             background: var(--tg-theme-button-color, #0088cc);
             color: var(--tg-theme-button-text-color, #ffffff);
             border: none;
             padding: 12px 24px;
-            border-radius: 10px;
-            margin: 5px;
+            border-radius: 25px;
+            font-size: 16px;
             cursor: pointer;
+            transition: all 0.3s ease;
+            min-width: 120px;
+        }
+
+        .nav-btn:disabled {
+            background: var(--tg-theme-section-separator-color, #cccccc);
+            cursor: not-allowed;
+            opacity: 0.6;
+        }
+
+        .nav-btn:active {
+            transform: scale(0.95);
+        }
+
+        .counter {
+            font-size: 14px;
+            color: var(--tg-theme-hint-color, #999999);
+            margin-bottom: 10px;
+        }
+
+        .image-title {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 10px;
+            text-align: center;
+        }
+
+        .swipe-hint {
+            position: absolute;
+            bottom: 20px;
+            font-size: 12px;
+            color: var(--tg-theme-hint-color, #999999);
+            text-align: center;
+        }
+
+        /* Анимации */
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateX(50px); }
+            to { opacity: 1; transform: translateX(0); }
+        }
+
+        @keyframes slideOut {
+            from { opacity: 1; transform: translateX(0); }
+            to { opacity: 0; transform: translateX(-50px); }
+        }
+
+        .slide-in {
+            animation: slideIn 0.3s ease;
+        }
+
+        .slide-out {
+            animation: slideOut 0.3s ease;
+        }
+
+        /* Адаптивность */
+        @media (max-width: 480px) {
+            .image-wrapper {
+                height: 300px;
+            }
+            
+            .nav-btn {
+                padding: 10px 20px;
+                min-width: 100px;
+            }
         }
     </style>
 </head>
 <body>
-    <div class="container">
-        <h1>🎉 Мое приложение</h1>
-        <p>Добро пожаловать в мини-приложение MAX!</p>
-        <button onclick="showUserInfo()">Показать информацию</button>
-        <button onclick="sendData()">Отправить данные</button>
-        <div id="output"></div>
+    <div class="header">
+        <h1>🖼️ Галерея</h1>
     </div>
 
-    <script src="script.js"></script>
+    <div class="gallery-container">
+        <div class="counter">
+            <span id="current">1</span> / <span id="total">0</span>
+        </div>
+        
+        <div class="image-title" id="imageTitle">Загрузка...</div>
+        
+        <div class="image-wrapper">
+            <img id="galleryImage" class="gallery-image" src="" alt="Галерея">
+        </div>
+
+        <div class="navigation">
+            <button class="nav-btn" id="prevBtn" onclick="previousImage()">⬅️ Назад</button>
+            <button class="nav-btn" id="nextBtn" onclick="nextImage()">Вперед ➡️</button>
+        </div>
+
+        <div class="swipe-hint">
+            💡 Можно листать свайпом по картинке
+        </div>
+    </div>
+
+    <script>
+        // Telegram Web App API
+        const tg = window.Telegram.WebApp;
+        
+        // Инициализация
+        tg.expand();
+        tg.enableClosingConfirmation();
+        tg.MainButton.setText("Поделиться").hide();
+
+        // Коллекция картинок
+        const images = [
+            {
+                url: "https://images.unsplash.com/photo-1506905925346-21bda4d32df4?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1000&q=80",
+                title: "Горный пейзаж"
+            },
+            {
+                url: "https://images.unsplash.com/photo-1439066615861-d1af74d74000?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1000&q=80",
+                title: "Лесная тропа"
+            },
+            {
+                url: "https://images.unsplash.com/photo-1469474968028-56623f02e42e?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1000&q=80",
+                title: "Закат над озером"
+            },
+            {
+                url: "https://images.unsplash.com/photo-1682686581556-a3f0ee0ed556?ixlib=rb-4.0.3&ixid=M3wxMjA3fDF8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1000&q=80",
+                title: "Океанские волны"
+            },
+            {
+                url: "https://images.unsplash.com/photo-1544551763-46a013bb70d5?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1000&q=80",
+                title: "Город ночью"
+            }
+        ];
+
+        let currentIndex = 0;
+        const galleryImage = document.getElementById('galleryImage');
+        const imageTitle = document.getElementById('imageTitle');
+        const currentCounter = document.getElementById('current');
+        const totalCounter = document.getElementById('total');
+        const prevBtn = document.getElementById('prevBtn');
+        const nextBtn = document.getElementById('nextBtn');
+
+        // Инициализация галереи
+        function initGallery() {
+            totalCounter.textContent = images.length;
+            updateImage();
+            updateButtons();
+        }
+
+        // Обновление отображаемой картинки
+        function updateImage() {
+            const image = images[currentIndex];
+            
+            // Анимация смены картинки
+            galleryImage.style.opacity = '0';
+            
+            setTimeout(() => {
+                galleryImage.src = image.url;
+                galleryImage.alt = image.title;
+                imageTitle.textContent = image.title;
+                currentCounter.textContent = currentIndex + 1;
+                
+                galleryImage.style.opacity = '1';
+                galleryImage.classList.add('slide-in');
+                
+                setTimeout(() => {
+                    galleryImage.classList.remove('slide-in');
+                }, 300);
+            }, 150);
+        }
+
+        // Обновление состояния кнопок
+        function updateButtons() {
+            prevBtn.disabled = currentIndex === 0;
+            nextBtn.disabled = currentIndex === images.length - 1;
+        }
+
+        // Следующая картинка
+        function nextImage() {
+            if (currentIndex < images.length - 1) {
+                currentIndex++;
+                updateImage();
+                updateButtons();
+            }
+        }
+
+        // Предыдущая картинка
+        function previousImage() {
+            if (currentIndex > 0) {
+                currentIndex--;
+                updateImage();
+                updateButtons();
+            }
+        }
+
+        // Обработчики свайпов
+        let startX = 0;
+        let endX = 0;
+
+        galleryImage.addEventListener('touchstart', (e) => {
+            startX = e.touches[0].clientX;
+        });
+
+        galleryImage.addEventListener('touchend', (e) => {
+            endX = e.changedTouches[0].clientX;
+            handleSwipe();
+        });
+
+        function handleSwipe() {
+            const swipeThreshold = 50;
+            const diff = startX - endX;
+
+            if (Math.abs(diff) > swipeThreshold) {
+                if (diff > 0) {
+                    // Свайп влево - следующая картинка
+                    nextImage();
+                } else {
+                    // Свайп вправо - предыдущая картинка
+                    previousImage();
+                }
+            }
+        }
+
+        // Обработчики клавиатуры
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowLeft') {
+                previousImage();
+            } else if (e.key === 'ArrowRight') {
+                nextImage();
+            }
+        });
+
+        // Кнопка "Поделиться"
+        tg.MainButton.onClick(() => {
+            const currentImage = images[currentIndex];
+            tg.showPopup({
+                title: "Поделиться",
+                message: `Хочешь поделиться картинкой "${currentImage.title}"?`,
+                buttons: [
+                    { type: "default", text: "Отмена" },
+                    { 
+                        type: "ok", 
+                        text: "Поделиться",
+                        onClick: () => {
+                            tg.sendData(JSON.stringify({
+                                action: "share_image",
+                                image_url: currentImage.url,
+                                image_title: currentImage.title
+                            }));
+                        }
+                    }
+                ]
+            });
+        });
+
+        // Показываем кнопку "Поделиться" после загрузки
+        tg.MainButton.show();
+
+        // Запускаем галерею
+        initGallery();
+
+        // Адаптация под тему Telegram
+        if (tg.colorScheme === 'dark') {
+            document.documentElement.style.setProperty('--tg-theme-bg-color', tg.themeParams.bg_color || '#1c1c1c');
+            document.documentElement.style.setProperty('--tg-theme-text-color', tg.themeParams.text_color || '#ffffff');
+        }
+    </script>
 </body>
 </html>
